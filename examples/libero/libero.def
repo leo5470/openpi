@@ -1,0 +1,85 @@
+Bootstrap: docker
+From: nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
+
+%files
+    examples/libero/requirements.txt /tmp/requirements.txt
+    third_party/libero/requirements.txt /tmp/requirements-libero.txt
+    packages/openpi-client/pyproject.toml /tmp/openpi-client/pyproject.toml
+
+%environment
+    export UV_LINK_MODE=copy
+    export UV_PROJECT_ENVIRONMENT=/.venv
+    export PYTHONPATH=/app:/app/packages/openpi-client/src:/app/third_party/libero
+    export LIBERO_CONFIG_PATH=/tmp/libero
+    export PATH=/.venv/bin:$PATH
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Install system dependencies
+    # Added curl and ca-certificates to download uv
+    apt-get update && apt-get install -y \
+        make \
+        g++ \
+        clang \
+        libosmesa6-dev \
+        libgl1-mesa-glx \
+        libegl1 \
+        libglew-dev \
+        libglfw3-dev \
+        libgles2-mesa-dev \
+        libglib2.0-0 \
+        libsm6 \
+        libxrender1 \
+        libxext6 \
+        curl \
+        ca-certificates
+
+    # Install uv (using version from Dockerfile)
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" UV_VERSION="0.5.1" sh
+
+    # Setup environment variables for build steps
+    export UV_LINK_MODE=copy
+    export UV_PROJECT_ENVIRONMENT=/.venv
+    
+    # Install Python 3.8 and create virtual environment
+    # uv manages the python download and venv creation
+    /usr/local/bin/uv venv --python 3.8 "$UV_PROJECT_ENVIRONMENT"
+    
+    # Install dependencies
+    /usr/local/bin/uv pip sync \
+        /tmp/requirements.txt \
+        /tmp/requirements-libero.txt \
+        /tmp/openpi-client/pyproject.toml \
+        --extra-index-url https://download.pytorch.org/whl/cu113 \
+        --index-strategy=unsafe-best-match
+
+    # Create default config file for LIBERO
+    mkdir -p /tmp/libero
+    cat <<'EOF' > /tmp/libero/config.yaml
+benchmark_root: /app/third_party/libero/libero/libero
+bddl_files: /app/third_party/libero/libero/libero/bddl_files
+init_states: /app/third_party/libero/libero/libero/init_files
+datasets: /app/third_party/libero/libero/datasets
+assets: /app/third_party/libero/libero/libero/assets
+EOF
+
+    # Configure EGL for NVIDIA
+    mkdir -p /usr/share/glvnd/egl_vendor.d
+    echo '{"file_format_version" : "1.0.0", "ICD" : { "library_path" : "libEGL_nvidia.so.0" }}' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    
+    # Cleanup
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%help
+    Singularity definition file for the LIBERO benchmark.
+    
+    This image provides a environment with Python 3.8 and LIBERO dependencies
+    managed via a virtual environment in /.venv.
+
+    Build usage:
+        sudo singularity build examples/libero/libero.sif examples/libero/Singularity.def
+    
+    Run usage (example):
+        singularity exec --nv --bind .:/app examples/libero/libero.sif bash -c "cd /app && python examples/libero/main.py [args]"

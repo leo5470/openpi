@@ -1,0 +1,59 @@
+Bootstrap: docker
+From: nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
+
+%files
+    uv.lock /tmp/build/uv.lock
+    pyproject.toml /tmp/build/pyproject.toml
+    packages/openpi-client /tmp/build/packages/openpi-client
+    src/openpi/models_pytorch/transformers_replace /tmp/transformers_replace
+
+%environment
+    export UV_LINK_MODE=copy
+    export UV_PROJECT_ENVIRONMENT=/.venv
+    export PATH=/.venv/bin:$PATH
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Install system dependencies
+    apt-get update && apt-get install -y \
+        git \
+        git-lfs \
+        linux-headers-generic \
+        build-essential \
+        clang \
+        curl \
+        ca-certificates
+
+    # Install uv (version 0.5.1 from Dockerfile)
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" UV_VERSION="0.5.1" sh
+
+    # Setup environment variables for build steps
+    export UV_LINK_MODE=copy
+    export UV_PROJECT_ENVIRONMENT=/.venv
+
+    # Run uv sync
+    cd /tmp/build
+    GIT_LFS_SKIP_SMUDGE=1 /usr/local/bin/uv venv --python 3.11.9 "$UV_PROJECT_ENVIRONMENT"
+    GIT_LFS_SKIP_SMUDGE=1 /usr/local/bin/uv sync --frozen --no-install-project --no-dev
+    
+    # Perform transformers_replace logic
+    "/.venv/bin/python" -c "import transformers; print(transformers.__file__)" | xargs dirname | xargs -I{} cp -r /tmp/transformers_replace/* {}
+    
+    # Cleanup
+    rm -rf /tmp/build
+    rm -rf /tmp/transformers_replace
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%help
+    Singularity definition file for serving a PI policy.
+    
+    This image provides an environment with Python 3.11.9 and PI policy dependencies
+    managed via a virtual environment in /.venv.
+
+    Build usage:
+        sudo singularity build scripts/docker/serve_policy.sif scripts/docker/serve_policy.def
+    
+    Run usage (example):
+        singularity exec --nv --bind .:/app scripts/docker/serve_policy.sif bash -c "cd /app && python scripts/serve_policy.py [args]"
