@@ -4,6 +4,10 @@ checkpoints/
 data/
 wandb/
 
+# LIBERO-Plus eval: machine-specific config (absolute paths); regenerate via
+# examples/libero/setup_libero_plus_env.sh.
+examples/libero/libero_config/config.yaml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
