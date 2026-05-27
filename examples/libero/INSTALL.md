@@ -6,11 +6,16 @@ openpi's standard LIBERO pattern:
 | Env | Python | Purpose | Built with |
 |-----|--------|---------|-----------|
 | **server** | repo default (3.11) | runs `scripts/serve_policy.py` (JAX, the policy) | `uv sync` |
-| **client** | 3.8 + cu113 | runs `examples/libero/main_libero_plus.py` (LIBERO-Plus sim) | `examples/libero/.venv` |
+| **client** | 3.8 + cu113 | runs `examples/libero/main_libero_plus.py` (LIBERO-Plus sim) | `uv venv` **or conda** (see §3) |
 
 They are kept separate on purpose: LIBERO pins old deps (numpy 1.22, torch
 cu113, gym 0.25) that conflict with the server's JAX stack. The two talk over a
 websocket, so they can even live on different hosts.
+
+> **No sudo on the box?** Build the *client* env with **conda**, not `uv` — see
+> §3's alternative. LIBERO-Plus needs native C libraries (ImageMagick,
+> fontconfig, expat) that `uv`/`pip` cannot install but conda-forge can, into a
+> user-writable prefix with no root. The server env stays on `uv` either way.
 
 > All paths below are relative to the **fork root** (the openpi checkout).
 
@@ -21,13 +26,25 @@ websocket, so they can even live on different hosts.
 - NVIDIA GPU with **fully free memory** (the policy + MuJoCo EGL rendering want
   headroom; a 24 GB card is plenty when not shared).
 - Recent NVIDIA driver + CUDA userspace.
-- [`uv`](https://docs.astral.sh/uv/) and `git-lfs`.
-- **System ImageMagick** — required by the LIBERO-Plus *Sensor Noise* axis (see
-  step 2, the `Wand` dependency):
+- [`uv`](https://docs.astral.sh/uv/) and `git-lfs`. (`conda` too if you take the
+  no-sudo client path in §3.)
+- **Native C libraries for the client** — LIBERO-Plus's `env_wrapper.py` binds
+  ImageMagick (via `Wand`) at import time, and the MuJoCo/robosuite stack needs
+  fontconfig + expat. `uv`/`pip` cannot provide these; get them one of two ways:
 
   ```bash
-  sudo apt-get update && sudo apt-get install -y libmagickwand-dev imagemagick
+  # (a) with sudo — system packages:
+  sudo apt-get update && sudo apt-get install -y \
+    libmagickwand-dev imagemagick libfontconfig1-dev libexpat1
   ```
+
+  ```bash
+  # (b) no sudo — via conda-forge into the client env instead (see §3):
+  conda install -c conda-forge imagemagick fontconfig expat
+  ```
+
+  `libpython3-stdlib` is only relevant to the *system* python; conda/uv pythons
+  ship their own stdlib, so you can ignore it.
 
 ## 1. Clone the fork with the LIBERO-Plus submodule
 
@@ -63,6 +80,11 @@ under `~/.cache/openpi`). Never commit it.
 
 ## 3. Client environment (LIBERO-Plus sim)
 
+Pick **one** of the two options. Both end with the same Python deps; they differ
+only in how the env and the native C libraries are provided.
+
+### Option A — `uv` (you have sudo for the §0 system libs)
+
 ```bash
 uv venv --python 3.8 examples/libero/.venv
 source examples/libero/.venv/bin/activate
@@ -79,6 +101,29 @@ uv pip install Wand scikit-image scipy
 
 export PYTHONPATH=$PYTHONPATH:$PWD/third_party/libero
 ```
+
+### Option B — conda (no sudo: conda-forge supplies the C libraries)
+
+```bash
+conda create -n libero_plus python=3.8 -y
+conda activate libero_plus
+
+# the native libs uv/pip can't install (ImageMagick -> libMagickWand, etc.):
+conda install -c conda-forge imagemagick fontconfig expat -y
+
+# Python deps into the conda env (uv pip targets it via --python; plain pip -r works too):
+PY="$CONDA_PREFIX/bin/python"
+uv pip install --python "$PY" -r examples/libero/requirements.txt -r third_party/libero/requirements.txt \
+  --extra-index-url https://download.pytorch.org/whl/cu113 --index-strategy=unsafe-best-match
+uv pip install --python "$PY" -e packages/openpi-client -e third_party/libero
+uv pip install --python "$PY" Wand scikit-image scipy
+
+export PYTHONPATH=$PYTHONPATH:$PWD/third_party/libero
+export MAGICK_HOME="$CONDA_PREFIX"   # so Wand loads the conda ImageMagick, not a system one
+```
+
+> If `import wand` still can't find ImageMagick, also
+> `export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"`.
 
 Verify the client env can import the Plus env (this is what catches a missing
 `Wand`/ImageMagick/`skimage`):
