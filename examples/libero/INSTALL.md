@@ -39,8 +39,8 @@ websocket, so they can even live on different hosts.
   ```
 
   ```bash
-  # (b) no sudo — via conda-forge into the client env instead (see §3):
-  conda install -c conda-forge imagemagick fontconfig expat
+  # (b) no sudo — conda-forge ships them; they're declared in the client env's
+  #     environment.yml, so just create it in §3 Option B (nothing to do here).
   ```
 
   `libpython3-stdlib` is only relevant to the *system* python; conda/uv pythons
@@ -104,24 +104,40 @@ export PYTHONPATH=$PYTHONPATH:$PWD/third_party/libero
 
 ### Option B — conda (no sudo: conda-forge supplies the C libraries)
 
+Two steps: `conda env create` builds python 3.8 + the native libs from
+`environment.yml`; then pip/uv installs the Python wheels into that env. (The
+wheels are kept out of `environment.yml` because conda feeds its `pip:` section
+through a temp file, which breaks the `-r examples/libero/requirements.txt`
+relative paths.)
+
 ```bash
-conda create -n libero_plus python=3.8 -y
+# 1) env + native C libs (declarative). Run from the fork root:
+conda env create -f examples/libero/environment.yml
 conda activate libero_plus
 
-# the native libs uv/pip can't install (ImageMagick -> libMagickWand, etc.):
-conda install -c conda-forge imagemagick fontconfig expat -y
-
-# Python deps into the conda env (uv pip targets it via --python; plain pip -r works too):
+# 2) Python wheels into the conda env -- same set as Option A. uv pip targets the
+#    conda env via --python and *install* (not sync) leaves conda's packages alone:
 PY="$CONDA_PREFIX/bin/python"
-uv pip install --python "$PY" -r examples/libero/requirements.txt -r third_party/libero/requirements.txt \
+uv pip install --python "$PY" \
+  -r examples/libero/requirements.txt -r third_party/libero/requirements.txt \
   --extra-index-url https://download.pytorch.org/whl/cu113 --index-strategy=unsafe-best-match
 uv pip install --python "$PY" -e packages/openpi-client -e third_party/libero
-uv pip install --python "$PY" Wand scikit-image scipy
+uv pip install --python "$PY" Wand scikit-image   # scipy is already pinned in requirements.txt
 
 export PYTHONPATH=$PYTHONPATH:$PWD/third_party/libero
 export MAGICK_HOME="$CONDA_PREFIX"   # so Wand loads the conda ImageMagick, not a system one
 ```
 
+> Plain `pip` works too (`pip install -r ... --extra-index-url ...`), but `uv pip`
+> is used here for the same cross-index resolution as Option A.
+>
+> **Pin skew to watch:** openpi's lockfile pins `robosuite==1.4.1` while
+> LIBERO-Plus's `requirements.txt` pins `1.4.0` (and adds robomimic/transformers/
+> bddl). `--index-strategy=unsafe-best-match` lets the resolver pick a consistent
+> set; if it still objects to the conflicting pins, install
+> `examples/libero/requirements.txt` first, then `uv pip install --python "$PY" -e
+> third_party/libero` and let its `setup.py` resolve the rest.
+>
 > If `import wand` still can't find ImageMagick, also
 > `export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"`.
 

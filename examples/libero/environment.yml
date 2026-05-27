@@ -1,0 +1,22 @@
+# Conda env for the LIBERO-Plus eval *client* (the simulator side).
+#
+# Defines ONLY what conda is uniquely good at here: python 3.8 + the native C
+# libraries that pip/uv cannot install and that LIBERO-Plus needs at import time
+# -- ImageMagick (via the `Wand` binding, used by the Sensor Noise axis), plus
+# fontconfig and expat for the MuJoCo/robosuite stack. No root required.
+#
+# The Python wheels (torch cu113, robosuite, openpi-client, the LIBERO-Plus
+# package, ...) are installed with pip/uv AFTER the env exists -- see
+# INSTALL.md §3 Option B. They are intentionally NOT listed here.
+#
+#   conda env create -f examples/libero/environment.yml   # run from the fork root
+#   conda activate libero_plus
+name: libero_plus
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - imagemagick   # provides libMagickWand for `Wand` (set MAGICK_HOME=$CONDA_PREFIX)
+  - fontconfig
+  - expat
+  - pip
