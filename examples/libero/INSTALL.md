@@ -32,11 +32,16 @@ websocket, so they can even live on different hosts.
 ## 1. Clone the fork with the LIBERO-Plus submodule
 
 ```bash
-git clone --recurse-submodules https://github.com/leo5470/openpi.git
+git clone https://github.com/leo5470/openpi.git
 cd openpi
-# If already cloned without --recurse-submodules:
+git checkout pi05-libero-plus-eval   # do this BEFORE touching submodules:
+                                     # main's .gitmodules still points at vanilla LIBERO
+git submodule sync third_party/libero
 git submodule update --init --recursive
 ```
+
+> The repoint to LIBERO-Plus lives on the `pi05-libero-plus-eval` branch. Once
+> it's merged to `main` you can clone with `--recurse-submodules` directly.
 
 `third_party/libero` is repointed to `leo5470/LIBERO-plus` (pinned at `4976dc3`).
 Sanity-check that you got **Plus**, not vanilla LIBERO:
