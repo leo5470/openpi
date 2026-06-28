@@ -97,7 +97,8 @@ uv pip install -e third_party/libero
 # LIBERO-Plus extras NOT in third_party/libero/requirements.txt: env_wrapper.py
 # imports these at module top level for the Sensor Noise perturbations
 # (motion/gaussian/zoom/fog/glass). Without them, importing the env fails.
-uv pip install Wand scikit-image scipy
+# (scipy is already pulled in transitively by robosuite, so it's not listed here.)
+uv pip install Wand scikit-image
 
 export PYTHONPATH=$PYTHONPATH:$PWD/third_party/libero
 ```
@@ -137,6 +138,10 @@ export MAGICK_HOME="$CONDA_PREFIX"   # so Wand loads the conda ImageMagick, not 
 > set; if it still objects to the conflicting pins, install
 > `examples/libero/requirements.txt` first, then `uv pip install --python "$PY" -e
 > third_party/libero` and let its `setup.py` resolve the rest.
+>
+> **`usd-core` (~300 MB):** LIBERO-Plus's `requirements.txt` pins `usd-core>=25.5`.
+> `usd-core 25.8` ships a `cp38` manylinux wheel so it installs fine on Python 3.8
+> Linux — just expect a slow download on first install; nothing to configure.
 >
 > If `import wand` still can't find ImageMagick, also
 > `export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"`.

@@ -43,7 +43,7 @@ uv run scripts/serve_policy.py --env LIBERO   # config pi05_libero; checkpoint a
 **Terminal 2 — drive the clients** (client env):
 
 ```bash
-source examples/libero/.venv/bin/activate
+source examples/libero/.venv/bin/activate   # Option A (uv); for Option B: conda activate libero_plus
 export PYTHONPATH=$PYTHONPATH:$PWD/third_party/libero
 export LIBERO_CONFIG_PATH=$PWD/examples/libero/libero_config
 export MUJOCO_GL=egl          # use glx if you hit EGL errors
